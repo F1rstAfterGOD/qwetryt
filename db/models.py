@@ -1,73 +1,91 @@
-from motor.motor_asyncio import AsyncIOMotorClient
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, List, Dict, Any
 from bson import ObjectId
-import logging
-
 from config import MONGO_URI, MONGO_DB_NAME
 
-class Database:
-    client: AsyncIOMotorClient = None
-    db = None
-
-db = Database()
+# Глобальные переменные для подключения
+client: Optional[AsyncIOMotorClient] = None
+db: Optional[AsyncIOMotorDatabase] = None
 
 async def connect_to_mongo():
     """Подключение к MongoDB"""
-    db.client = AsyncIOMotorClient(MONGO_URI)
-    db.db = db.client[MONGO_DB_NAME]
-    logging.info("Подключение к MongoDB установлено")
+    global client, db
+    client = AsyncIOMotorClient(MONGO_URI)
+    db = client[MONGO_DB_NAME]
+    print("Connected to MongoDB")
 
 async def close_mongo_connection():
     """Закрытие подключения к MongoDB"""
-    if db.client:
-        db.client.close()
-        logging.info("Подключение к MongoDB закрыто")
+    global client
+    if client:
+        client.close()
+        print("Disconnected from MongoDB")
+
+class User:
+    collection_name = "users"
+    
+    @classmethod
+    async def create(cls, user_id: int, username: str = None, first_name: str = None):
+        """Создание пользователя"""
+        user_data = {
+            "user_id": user_id,
+            "username": username,
+            "first_name": first_name,
+            "created_at": datetime.utcnow(),
+            "is_active": True
+        }
+        result = await db[cls.collection_name].insert_one(user_data)
+        return str(result.inserted_id)
+    
+    @classmethod
+    async def get_by_user_id(cls, user_id: int):
+        """Получение пользователя по user_id"""
+        return await db[cls.collection_name].find_one({"user_id": user_id})
 
 class Task:
     collection_name = "tasks"
     
     @classmethod
-    async def create(cls, tg_user_id: int, source_url: str, opus_job_id: str) -> str:
-        """Создание новой задачи"""
+    async def create(cls, user_id: int, youtube_url: str, opus_job_id: str = None):
+        """Создание задачи"""
         task_data = {
-            "tg_user_id": tg_user_id,
-            "source_url": source_url,
+            "user_id": user_id,
+            "youtube_url": youtube_url,
             "opus_job_id": opus_job_id,
-            "status": "processing",
+            "status": "pending",
+            "clips": [],
             "created_at": datetime.utcnow(),
-            "clips_total": 0,
-            "shorts_ok": 0
+            "updated_at": datetime.utcnow()
         }
-        result = await db.db[cls.collection_name].insert_one(task_data)
+        result = await db[cls.collection_name].insert_one(task_data)
         return str(result.inserted_id)
     
     @classmethod
-    async def find_by_opus_job_id(cls, opus_job_id: str) -> Optional[Dict[str, Any]]:
-        """Поиск задачи по opus_job_id"""
-        return await db.db[cls.collection_name].find_one({"opus_job_id": opus_job_id})
-    
-    @classmethod
-    async def find_by_task_id(cls, task_id: str) -> Optional[Dict[str, Any]]:
-        """Поиск задачи по _id"""
-        try:
-            return await db.db[cls.collection_name].find_one({"_id": ObjectId(task_id)})
-        except:
-            return None
-    
-    @classmethod
-    async def update_status(cls, task_id: str, status: str, clips_total: int = 0, shorts_ok: int = 0):
+    async def update_status(cls, task_id: str, status: str):
         """Обновление статуса задачи"""
-        update_data = {
-            "status": status,
-            "updated_at": datetime.utcnow()
-        }
-        if clips_total > 0:
-            update_data["clips_total"] = clips_total
-        if shorts_ok > 0:
-            update_data["shorts_ok"] = shorts_ok
-            
-        await db.db[cls.collection_name].update_one(
+        await db[cls.collection_name].update_one(
             {"_id": ObjectId(task_id)},
-            {"$set": update_data}
+            {"$set": {"status": status, "updated_at": datetime.utcnow()}}
         )
+    
+    @classmethod
+    async def add_clips(cls, task_id: str, clips: List[Dict[str, Any]]):
+        """Добавление клипов к задаче"""
+        await db[cls.collection_name].update_one(
+            {"_id": ObjectId(task_id)},
+            {
+                "$set": {
+                    "clips": clips,
+                    "status": "completed",
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+    
+    @classmethod
+    async def get_by_opus_job_id(cls, opus_job_id: str):
+        """Получение задачи по opus_job_id"""
+        return await db[cls.collection_name].find_one({"opus_job_id": opus_job_id})
+
+__all__ = ['Task', 'User', 'connect_to_mongo', 'close_mongo_connection']

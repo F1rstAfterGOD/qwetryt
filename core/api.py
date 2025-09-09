@@ -1,29 +1,30 @@
-from aiohttp import web
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from db.models import connect_to_mongo, close_mongo_connection
-from api.router.webhooks import opus_webhook
 from core.logger import setup_logging
+from api.router.webhooks import router as webhooks_router
 
-async def init_app():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     setup_logging()
-    app = web.Application()
+    await connect_to_mongo()
+    yield
+    # Shutdown
+    await close_mongo_connection()
+
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="YouTube Shorts Bot API",
+        version="1.0.0",
+        lifespan=lifespan
+    )
     
-    # Webhook endpoint
-    app.router.add_post('/webhooks/opus', opus_webhook)
+    # Include routers
+    app.include_router(webhooks_router, prefix="/webhooks")
     
-    # Health check
-    async def health(request):
-        return web.json_response({"status": "ok"})
-    
-    app.router.add_get('/health', health)
-    
-    # Startup/cleanup
-    async def startup(app):
-        await connect_to_mongo()
-    
-    async def cleanup(app):
-        await close_mongo_connection()
-    
-    app.on_startup.append(startup)
-    app.on_cleanup.append(cleanup)
+    @app.get("/health")
+    async def health():
+        return {"status": "ok"}
     
     return app

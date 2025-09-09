@@ -1,21 +1,12 @@
-import asyncio
-from aiohttp import web
-from core.api import init_app
-
-async def main():
-    app = await init_app()
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 8000)
-    await site.start()
-    print("🚀 API сервер запущен на порту 8000")
-    
-    try:
-        await asyncio.Future()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        await runner.cleanup()
+import uvicorn
+from core.api import create_app
+from config import API_HOST, API_PORT
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    app = create_app()
+    uvicorn.run(
+        app,
+        host=API_HOST,
+        port=API_PORT,
+        log_level="info"
+    )

@@ -4,10 +4,10 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
-from config.settings import BOT_TOKEN, WEBHOOK_BASE_URL, WEBHOOK_PATH, WEBHOOK_SECRET
+from config import BOT_TOKEN, WEBHOOK_BASE_URL, WEBHOOK_PATH, WEBHOOK_SECRET
 from db.models import connect_to_mongo, close_mongo_connection
 from core.logger import setup_logging
-from bot.handlers.user.commands import router
+from bot.handlers import router
 
 bot = Bot(token=BOT_TOKEN)
 

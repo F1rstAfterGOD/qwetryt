@@ -8,7 +8,7 @@ from aiohttp import web
 from config import BOT_TOKEN, WEBHOOK_BASE_URL, WEBHOOK_PATH, WEBHOOK_SECRET
 from db.models import connect_to_mongo, close_mongo_connection
 from utils.logger import setup_logging
-from .handlers import router
+from bot.handlers import router
 
 async def on_startup(bot: Bot):
     """Настройка webhook при запуске"""
